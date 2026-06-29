@@ -1,8 +1,15 @@
 import { useState, useEffect, useCallback } from 'react';
 import PropTypes from 'prop-types';
-import { ShieldCheck, Info, RefreshCw, AlertCircle, Loader2 } from 'lucide-react';
+import { ShieldCheck, Info, RefreshCw, AlertCircle, Loader2, Sparkles } from 'lucide-react';
 import { formatXLM } from '../utils/format';
-import { fetchBalanceOwed, fetchTotalPaid } from '../utils/contract';
+import { 
+  fetchBalanceOwed, 
+  fetchTotalPaid, 
+  fetchIsRoommate, 
+  fetchRoommateShare, 
+  fetchRoommatePaid, 
+  fetchRoommateBalance 
+} from '../utils/contract';
 
 export function ContractPaymentForm({
   senderAddress,
@@ -14,6 +21,13 @@ export function ContractPaymentForm({
   const [amount, setAmount] = useState('');
   const [contractTotalPaid, setContractTotalPaid] = useState(null);
   const [contractBalanceOwed, setContractBalanceOwed] = useState(null);
+  
+  // Roommate-specific states
+  const [isRoommate, setIsRoommate] = useState(null); // null represents loading
+  const [roommateShare, setRoommateShare] = useState(0);
+  const [roommatePaid, setRoommatePaid] = useState(0);
+  const [roommateBalance, setRoommateBalance] = useState(0);
+
   const [loadingContractState, setLoadingContractState] = useState(false);
   const [contractError, setContractError] = useState(null);
 
@@ -21,8 +35,7 @@ export function ContractPaymentForm({
   const [error, setError] = useState(null);
   const [isTouched, setIsTouched] = useState(false);
 
-  // Standard total rent limit on the contract (e.g. 1000 XLM for demo / initialization default)
-  // Let's deduce total rent from (collected + remaining owed)
+  // Global total rent calculated from collected + remaining owed
   const totalRent = (contractTotalPaid || 0) + (contractBalanceOwed || 0);
 
   const loadContractData = useCallback(async (showLoading = true) => {
@@ -30,23 +43,44 @@ export function ContractPaymentForm({
     setContractError(null);
 
     if (isMock) {
-      // Mock contract values for local simulation
+      // Setup realistic mock roommate values
+      // If the address contains 'GA7R' or similar, we mock it as roommate
       setContractTotalPaid(650);
       setContractBalanceOwed(350);
-      setLoadingContractState(false);
+      setIsRoommate(true);
+      setRoommateShare(300);
+      setRoommatePaid(120);
+      setRoommateBalance(180);
+      if (showLoading) setLoadingContractState(false);
       return;
     }
 
     try {
-      const [paid, owed] = await Promise.all([
+      const [
+        paid, 
+        owed, 
+        registered, 
+        share, 
+        rmPaid, 
+        rmBalance
+      ] = await Promise.all([
         fetchTotalPaid(),
-        fetchBalanceOwed(senderAddress)
+        fetchBalanceOwed(senderAddress),
+        fetchIsRoommate(senderAddress),
+        fetchRoommateShare(senderAddress),
+        fetchRoommatePaid(senderAddress),
+        fetchRoommateBalance(senderAddress)
       ]);
+
       setContractTotalPaid(paid);
       setContractBalanceOwed(owed);
+      setIsRoommate(registered);
+      setRoommateShare(share);
+      setRoommatePaid(rmPaid);
+      setRoommateBalance(rmBalance);
     } catch (err) {
       console.error('Failed to load contract state:', err);
-      setContractError('Could not sync contract state. Make sure contract is deployed and ID is valid.');
+      setContractError('Could not sync contract state. Make sure contracts are compiled, deployed, and linked.');
     } finally {
       if (showLoading) setLoadingContractState(false);
     }
@@ -61,6 +95,11 @@ export function ContractPaymentForm({
   const validate = useCallback(() => {
     if (!isTouched) {
       setError(null);
+      return;
+    }
+
+    if (!isRoommate) {
+      setError('You are not registered as a roommate.');
       return;
     }
 
@@ -82,13 +121,20 @@ export function ContractPaymentForm({
       return;
     }
 
+    // Check against individual remaining roommate balance
+    if (roommateBalance !== null && parsedAmount > roommateBalance) {
+      setError(`Amount exceeds your outstanding rent share (${roommateBalance} XLM remaining).`);
+      return;
+    }
+
+    // Check against global remaining rent split balance
     if (contractBalanceOwed !== null && parsedAmount > contractBalanceOwed) {
-      setError(`Amount exceeds what is owed on the contract (${contractBalanceOwed} XLM remaining).`);
+      setError(`Amount exceeds global rent owed on the contract (${contractBalanceOwed} XLM remaining).`);
       return;
     }
 
     setError(null);
-  }, [amount, walletBalance, contractBalanceOwed, isTouched]);
+  }, [amount, walletBalance, isRoommate, roommateBalance, contractBalanceOwed, isTouched]);
 
   useEffect(() => {
     validate();
@@ -97,8 +143,8 @@ export function ContractPaymentForm({
   const handleMaxClick = () => {
     setIsTouched(true);
     const maxSpendableWallet = Math.max(0, parseFloat(walletBalance || 0) - 1);
-    const maxAllowed = contractBalanceOwed !== null 
-      ? Math.min(maxSpendableWallet, contractBalanceOwed) 
+    const maxAllowed = roommateBalance !== null 
+      ? Math.min(maxSpendableWallet, roommateBalance) 
       : maxSpendableWallet;
 
     setAmount(maxAllowed > 0 ? maxAllowed.toString() : '0');
@@ -108,14 +154,19 @@ export function ContractPaymentForm({
     e.preventDefault();
     setIsTouched(true);
 
+    if (!isRoommate) {
+      setError('Cannot submit. Address is not registered as a roommate.');
+      return;
+    }
+
     const parsedAmount = parseFloat(amount);
     if (isNaN(parsedAmount) || parsedAmount <= 0) {
       setError('Please enter a valid payment amount.');
       return;
     }
 
-    if (contractBalanceOwed !== null && parsedAmount > contractBalanceOwed) {
-      setError('Amount exceeds the remaining rent owed.');
+    if (roommateBalance !== null && parsedAmount > roommateBalance) {
+      setError('Amount exceeds your remaining individual rent share.');
       return;
     }
 
@@ -127,8 +178,11 @@ export function ContractPaymentForm({
   const isFormValid = 
     amount && 
     !error && 
-    contractBalanceOwed > 0 && 
-    parseFloat(amount) <= contractBalanceOwed;
+    isRoommate &&
+    roommateBalance > 0 && 
+    parseFloat(amount) <= roommateBalance;
+
+  const roommatePercentPaid = roommateShare > 0 ? Math.round((roommatePaid / roommateShare) * 100) : 0;
 
   return (
     <form
@@ -153,26 +207,75 @@ export function ContractPaymentForm({
         </button>
       </div>
 
-      {/* Contract Metrics dashboard */}
-      <div className="grid grid-cols-3 gap-3 bg-slate-950/60 border border-appBorder rounded-xl p-3">
-        <div className="text-center">
-          <span className="text-[10px] text-appText-muted font-medium uppercase tracking-wider">Total Rent</span>
-          <p className="text-sm font-bold text-white mt-0.5">
-            {loadingContractState && totalRent === 0 ? '...' : `${totalRent} XLM`}
-          </p>
+      {/* Access Control Check alerts */}
+      {isRoommate === false && !loadingContractState && (
+        <div className="bg-error/10 border border-error/25 rounded-xl p-4 text-xs text-error space-y-2">
+          <div className="flex items-start gap-2.5">
+            <AlertCircle className="w-4.5 h-4.5 shrink-0 text-error mt-0.5" />
+            <div>
+              <span className="font-bold">Not Registered as Roommate</span>
+              <p className="text-appText-muted mt-0.5 leading-normal">
+                Your wallet address is not registered in the roommate registry. Landlords must register you in the RoomManager contract before you can split rent.
+              </p>
+            </div>
+          </div>
+          <div className="bg-slate-950/50 p-2.5 rounded-lg border border-appBorder/50 space-y-0.5">
+            <span className="text-[10px] text-slate-400 block font-semibold uppercase tracking-wide">Your Address:</span>
+            <span className="font-mono text-slate-200 block break-all text-[11px]">{senderAddress}</span>
+          </div>
         </div>
-        <div className="text-center border-x border-appBorder/50">
-          <span className="text-[10px] text-emerald-400 font-medium uppercase tracking-wider">Total Paid</span>
-          <p className="text-sm font-bold text-white mt-0.5">
-            {loadingContractState && contractTotalPaid === null ? '...' : `${contractTotalPaid} XLM`}
-          </p>
+      )}
+
+      {/* Roommate Stats Metrics Dashboard */}
+      {isRoommate && (
+        <div className="space-y-3.5 bg-slate-950/60 border border-appBorder rounded-xl p-4">
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-accent">
+            <Sparkles className="w-3.5 h-3.5 text-accent" />
+            <span>Your Personal Rent Overview</span>
+          </div>
+          
+          <div className="grid grid-cols-3 gap-2 text-center border-b border-appBorder/40 pb-3">
+            <div>
+              <span className="text-[9px] text-appText-muted font-medium uppercase tracking-wider">Your Share</span>
+              <p className="text-sm font-bold text-white mt-0.5">
+                {loadingContractState ? '...' : `${roommateShare} XLM`}
+              </p>
+            </div>
+            <div className="border-x border-appBorder/40">
+              <span className="text-[9px] text-emerald-400 font-medium uppercase tracking-wider">You Paid</span>
+              <p className="text-sm font-bold text-white mt-0.5">
+                {loadingContractState ? '...' : `${roommatePaid} XLM`}
+              </p>
+            </div>
+            <div>
+              <span className="text-[9px] text-amber-400 font-medium uppercase tracking-wider">You Owe</span>
+              <p className="text-sm font-bold text-white mt-0.5">
+                {loadingContractState ? '...' : `${roommateBalance} XLM`}
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <div className="flex justify-between text-[10px] text-appText-muted font-medium">
+              <span>Your Contribution Settlement</span>
+              <span className="text-white font-semibold">{roommatePercentPaid}% Paid</span>
+            </div>
+            <div className="w-full bg-slate-900 h-2 rounded-full overflow-hidden border border-appBorder/20">
+              <div 
+                className="bg-accent h-full rounded-full transition-all duration-500 ease-out"
+                style={{ width: `${roommatePercentPaid}%` }}
+              />
+            </div>
+          </div>
         </div>
-        <div className="text-center">
-          <span className="text-[10px] text-amber-400 font-medium uppercase tracking-wider">Owed (Remaining)</span>
-          <p className="text-sm font-bold text-white mt-0.5">
-            {loadingContractState && contractBalanceOwed === null ? '...' : `${contractBalanceOwed} XLM`}
-          </p>
-        </div>
+      )}
+
+      {/* Global Contract Stats overview */}
+      <div className="flex justify-between items-center text-xs bg-slate-950/30 border border-appBorder/40 px-3.5 py-2.5 rounded-xl">
+        <span className="text-appText-muted">Global Pool Metrics:</span>
+        <span className="font-semibold text-slate-300">
+          {loadingContractState ? '...' : `${contractTotalPaid} / ${totalRent} XLM Paid`}
+        </span>
       </div>
 
       {contractError && (
@@ -182,14 +285,14 @@ export function ContractPaymentForm({
         </div>
       )}
 
-      {/* Contract status alert */}
-      {contractBalanceOwed === 0 && !loadingContractState && (
+      {/* Roommate Rent Fully Settled Alert */}
+      {isRoommate && roommateBalance === 0 && !loadingContractState && (
         <div className="bg-success/10 border border-success/20 rounded-xl p-3.5 text-xs text-success flex items-start gap-2.5">
           <Info className="w-4.5 h-4.5 shrink-0 text-success mt-0.5" />
           <div>
-            <span className="font-bold">Rent Fully Settled!</span>
+            <span className="font-bold">Your Share is Fully Settled!</span>
             <p className="text-appText-muted mt-0.5 leading-normal">
-              Excellent! The roommate rent has been 100% paid on-chain. There is no outstanding debt on this contract.
+              Congratulations! You have paid 100% of your assigned rent share. Thank you!
             </p>
           </div>
         </div>
@@ -204,7 +307,7 @@ export function ContractPaymentForm({
           <button
             type="button"
             onClick={handleMaxClick}
-            disabled={isLoading || loadingContractState || contractBalanceOwed <= 0}
+            disabled={isLoading || loadingContractState || !isRoommate || roommateBalance <= 0}
             className="text-xs font-bold text-accent hover:text-accent/90 disabled:opacity-50 disabled:cursor-not-allowed hover:underline focus:outline-none"
           >
             Pay Max Owed
@@ -220,7 +323,7 @@ export function ContractPaymentForm({
               setAmount(e.target.value);
               setIsTouched(true);
             }}
-            disabled={isLoading || loadingContractState || contractBalanceOwed <= 0}
+            disabled={isLoading || loadingContractState || !isRoommate || roommateBalance <= 0}
             placeholder="0.00"
             className={`w-full pl-4 pr-16 py-2.5 bg-slate-950/75 border rounded-xl text-sm font-semibold text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-primary/45 transition-all duration-200 ${
               error && isTouched

@@ -62,11 +62,14 @@ export function classifyError(err) {
     lowerMsg.includes('not funded') ||
     lowerMsg.includes('friendbot') ||
     // Soroban contract panic codes: 
-    // AlreadyPaid = 1, AmountExceedsOwed = 5
+    // AlreadyPaid = 1, AmountExceedsOwed = 5, AmountExceedsShare = 7, ExceedsShare = 6
     lowerMsg.includes('contract, #1') || // AlreadyPaid panic
     lowerMsg.includes('contract, #5') || // AmountExceedsOwed panic
+    lowerMsg.includes('contract, #6') || // ExceedsShare (RoomManager) panic
+    lowerMsg.includes('contract, #7') || // AmountExceedsShare (RentSplit) panic
     lowerMsg.includes('already paid') ||
     lowerMsg.includes('amount exceeds') ||
+    lowerMsg.includes('exceeds share') ||
     lowerMsg.includes('exceeds what\'s owed') ||
     (err.response && err.response.data && JSON.stringify(err.response.data).includes('op_underfunded'));
 
@@ -76,6 +79,8 @@ export function classifyError(err) {
       msg = 'Rent payment rejected: The rent for this contract has already been fully paid!';
     } else if (lowerMsg.includes('contract, #5') || lowerMsg.includes('amount exceeds') || lowerMsg.includes('exceeds what\'s owed')) {
       msg = 'Rent payment rejected: The payment amount exceeds the remaining rent balance owed.';
+    } else if (lowerMsg.includes('contract, #6') || lowerMsg.includes('contract, #7') || lowerMsg.includes('exceeds share')) {
+      msg = 'Rent payment rejected: The payment amount exceeds your remaining rent share.';
     } else if (lowerMsg.includes('not funded')) {
       msg = 'Account not active. Use the Funding Helper (Friendbot) to fund and activate your wallet on Testnet.';
     }
@@ -92,11 +97,22 @@ export function classifyError(err) {
   if (lowerMsg.includes('timeout') || lowerMsg.includes('network error') || lowerMsg.includes('408')) {
     networkOrContractMsg = 'Request timed out or connection failed. Please check your internet connection and try again.';
   } else if (lowerMsg.includes('contract, #3') || lowerMsg.includes('not initialized')) {
-    networkOrContractMsg = 'Contract Error: The rent contract has not been initialized by the landlord yet.';
+    networkOrContractMsg = 'Contract Error: The contract has not been initialized yet.';
   } else if (lowerMsg.includes('contract, #4') || lowerMsg.includes('already initialized')) {
-    networkOrContractMsg = 'Contract Error: The rent contract has already been initialized.';
+    networkOrContractMsg = 'Contract Error: The contract has already been initialized.';
   } else if (lowerMsg.includes('contract, #2') || lowerMsg.includes('invalid amount')) {
-    networkOrContractMsg = 'Contract Error: Invalid payment amount. The amount must be greater than zero.';
+    networkOrContractMsg = 'Contract Error: Invalid payment/share amount. The amount must be greater than zero.';
+  } else if (lowerMsg.includes('contract, #6') && lowerMsg.includes('notroommate') || lowerMsg.includes('not roommate') || lowerMsg.includes('not_roommate')) {
+    networkOrContractMsg = 'Contract Error: You are not registered as a roommate for this contract.';
+  } else if (lowerMsg.includes('contract, #8') || lowerMsg.includes('roommanagererror') || lowerMsg.includes('room manager error')) {
+    networkOrContractMsg = 'Contract Error: Cross-contract interaction failed between RentSplit and RoomManager.';
+  } else if (lowerMsg.includes('notauthorized') || lowerMsg.includes('not authorized') || lowerMsg.includes('contract, #1')) {
+    // Note: RoomManager error #1 is NotAuthorized
+    if (lowerMsg.includes('contract, #1') && !lowerMsg.includes('alreadypaid') && !lowerMsg.includes('already paid')) {
+      networkOrContractMsg = 'Contract Error: You are not authorized to perform this administrative action (requires admin signature).';
+    } else {
+      networkOrContractMsg = 'Contract Error: Action not authorized.';
+    }
   } else if (lowerMsg.includes('simulation') || lowerMsg.includes('simulate') || lowerMsg.includes('invalid input')) {
     networkOrContractMsg = 'Soroban contract execution simulation failed. Please verify your inputs (e.g. valid public keys and non-zero amounts).';
   } else if (err.response && err.response.status === 404) {

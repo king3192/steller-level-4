@@ -81,3 +81,35 @@
 .balance-flash {
   animation: green-flash 1s ease-out;
 }
+
+/* Custom premium scrollbar for roommate registers */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(167, 139, 250, 0.2);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(167, 139, 250, 0.4);
+}
+
+/* Loading skeleton pulse animation */
+@keyframes skeleton-glow {
+  0%, 100% {
+    opacity: 0.6;
+    background-color: rgba(31, 41, 55, 0.5);
+  }
+  50% {
+    opacity: 1;
+    background-color: rgba(55, 65, 81, 0.6);
+  }
+}
+
+.animate-skeleton {
+  animation: skeleton-glow 1.8s infinite ease-in-out;
+}

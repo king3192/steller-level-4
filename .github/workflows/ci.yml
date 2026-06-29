@@ -1,0 +1,87 @@
+name: RentStar CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test-contracts:
+    name: Test Smart Contracts
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Cache Cargo Dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            rentstar/target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Run RoomManager Tests
+        run: |
+          cd rentstar/contracts/room_manager
+          cargo test
+
+      - name: Run RentSplit Tests
+        run: |
+          cd rentstar/contracts/rent_split
+          cargo test
+
+      - name: Compile Contracts to WebAssembly
+        run: |
+          cd rentstar/contracts/room_manager
+          cargo build --target wasm32-unknown-unknown --release
+          cd ../rent_split
+          cargo build --target wasm32-unknown-unknown --release
+
+  build-frontend:
+    name: Build React Frontend
+    runs-on: ubuntu-latest
+    needs: test-contracts
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: 'npm'
+          cache-dependency-path: rentstar/package-lock.json
+
+      - name: Install Dependencies
+        run: |
+          cd rentstar
+          npm install
+
+      - name: Run ESLint
+        run: |
+          cd rentstar
+          npm run lint
+
+      - name: Build Production Bundle
+        run: |
+          cd rentstar
+          # Disable treating warnings as errors in vite for clean bundle if eslint warnings exist
+          npm run build
+        env:
+          VITE_CONTRACT_ID: "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC"
+          VITE_ROOM_MANAGER_CONTRACT_ID: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
+          VITE_SOROBAN_RPC_URL: "https://soroban-testnet.stellar.org"
+          VITE_NETWORK_PASSPHRASE: "Test SDF Network ; September 2015"
+          VITE_HORIZON_URL: "https://horizon-testnet.stellar.org"

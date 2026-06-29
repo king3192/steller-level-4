@@ -28,3 +28,7 @@ dist-ssr
 .env.*
 !.env.example
 
+# Rust target builds
+target/
+**/target/
+**/*.rs.bk

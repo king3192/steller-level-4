@@ -1,86 +1,162 @@
-# Deployment Instructions for `rent_split` Soroban Contract
+# Deployment Instructions for RentStar Multi-Contract System
 
-Follow these instructions step-by-step to build, deploy, and configure your Soroban smart contract on the Stellar Testnet.
+Follow these instructions to compile, deploy, initialize, and cross-link the `RoomManager` and `RentSplit` Soroban smart contracts on the Stellar Testnet.
 
-## Prerequisites
+---
+
+## 🏗️ Multi-Contract Architecture
+
+RentStar uses a two-contract system for enterprise rent settlements:
+1. **`RoomManagerContract`**: Stores roommate registrations, rent shares, payment histories, and the landlord's admin address.
+2. **`RentSplitContract`**: Accumulates split payments and verifies payment limits by querying the `RoomManager` contract.
+
+Both contracts must be deployed, initialized, and linked to allow proper communication.
+
+---
+
+## ⚙️ Prerequisites
 
 Ensure you have the following installed on your system:
 - **Rust and Cargo**: [Install Rust](https://www.rust-lang.org/tools/install)
-- **Stellar CLI**: Install the CLI via cargo:
+- **Stellar CLI**: Install via cargo:
   ```bash
   cargo install --locked stellar-cli --features opt
   ```
-- **Wasm target**: Add the WebAssembly target for Rust compilation:
+- **Wasm target**: Add WebAssembly target compilation:
   ```bash
   rustup target add wasm32-unknown-unknown
   ```
+- **Stellar Account (Testnet)**:
+  - Generate an identity: `stellar keys generate --global admin`
+  - Fund it via Friendbot: `https://friendbot.stellar.org/?addr=<ADMIN_PUBLIC_KEY>`
 
 ---
 
-## 1. Build the Contract
+## 🚀 1. Automated Deployment (Recommended)
 
-Navigate to the `contracts/rent_split` directory and build the contract:
+An automated deployment orchestrator script is provided. It handles building, deploying, initializing, cross-linking, updating `.env`, and generating bindings.
 
+### Windows (PowerShell)
+From the `rentstar/` folder:
+```powershell
+./deploy-all.ps1
+```
+
+### Linux / macOS / Git Bash
+From the `rentstar/` folder:
 ```bash
-cd rentstar/contracts/rent_split
+chmod +x deploy-all.sh
+./deploy-all.sh
+```
+
+---
+
+## 🛠️ 2. Manual Deployment Steps
+
+If you prefer to execute commands manually:
+
+### Step A: Build the WASM binaries
+Compile both crates:
+```bash
+# In rentstar/contracts/room_manager/
+stellar contract build
+
+# In rentstar/contracts/rent_split/
 stellar contract build
 ```
 
-This will compile the contract and output the compiled WebAssembly file to:
-`rentstar/target/wasm32-unknown-unknown/release/rent_split.wasm`
+### Step B: Deploy the Contracts
+Deploy the WebAssembly bytecode to Stellar Testnet:
+```bash
+# Deploy RoomManager
+ROOM_MANAGER_ID=$(stellar contract deploy \
+  --wasm target/wasm32-unknown-unknown/release/room_manager.wasm \
+  --source admin \
+  --network testnet)
 
----
+# Deploy RentSplit
+RENT_SPLIT_ID=$(stellar contract deploy \
+  --wasm target/wasm32-unknown-unknown/release/rent_split.wasm \
+  --source admin \
+  --network testnet)
+```
 
-## 2. Deploy to Testnet
+### Step C: Initialize & Link Contracts
+Run invocation commands to set contract owners and linkages:
 
-To deploy the contract, you will need a Stellar account with some testnet XLM. 
-
-1. **Configure your Testnet network** in Stellar CLI (if you haven't already):
+1. **Initialize RoomManager** (set landlord admin):
    ```bash
-   stellar network add --global testnet \
-     --rpc-url https://soroban-testnet.stellar.org:443 \
-     --network-passphrase "Test SDF Network ; September 2015"
-   ```
-
-2. **Generate or import an administrator identity**:
-   ```bash
-   # Generate a new identity called 'admin'
-   stellar keys generate --global admin
-   ```
-   *Tip: Fund the generated address using the Friendbot URL: `https://friendbot.stellar.org/?addr=<ADMIN_PUBLIC_KEY>`*
-
-3. **Deploy the Wasm bytecode**:
-   From the `rentstar` root directory, run the deploy command:
-   ```bash
-   stellar contract deploy \
-     --wasm target/wasm32-unknown-unknown/release/rent_split.wasm \
+   stellar contract invoke \
+     --id "$ROOM_MANAGER_ID" \
      --source admin \
-     --network testnet
+     --network testnet \
+     -- \
+     initialize \
+     --admin <LANDLORD_PUBLIC_KEY>
    ```
 
-This command will output the **Contract ID** (e.g. `C...`). Copy this Contract ID as you will need it for frontend integration and client bindings.
+2. **Initialize RentSplit** (set RoomManager reference):
+   ```bash
+   stellar contract invoke \
+     --id "$RENT_SPLIT_ID" \
+     --source admin \
+     --network testnet \
+     -- \
+     initialize \
+     --room_manager "$ROOM_MANAGER_ID"
+   ```
+
+3. **Link RentSplit in RoomManager** (enable payment recording authorization):
+   ```bash
+   stellar contract invoke \
+     --id "$ROOM_MANAGER_ID" \
+     --source admin \
+     --network testnet \
+     -- \
+     set_rent_split \
+     --rent_split "$RENT_SPLIT_ID"
+   ```
 
 ---
 
-## 3. Generate TypeScript Bindings
+## 📋 3. Update Frontend Configurations
 
-You can generate TypeScript bindings so that calling the contract from the frontend is type-safe and convenient:
+Generate TypeScript interfaces for client interactions and update the `.env` settings:
 
 ```bash
+# Generate RoomManager Bindings
 stellar contract bindings typescript \
-  --contract-id <DEPLOYED_CONTRACT_ID> \
+  --contract-id "$ROOM_MANAGER_ID" \
   --network testnet \
-  --output-dir src/utils/contract-bindings
+  --output-dir src/utils/room-manager-bindings --overwrite
+
+# Generate RentSplit Bindings
+stellar contract bindings typescript \
+  --contract-id "$RENT_SPLIT_ID" \
+  --network testnet \
+  --output-dir src/utils/contract-bindings --overwrite
 ```
 
-Replace `<DEPLOYED_CONTRACT_ID>` with the contract ID returned in step 2.
+Update your `.env` file in the `rentstar/` root:
+```env
+VITE_CONTRACT_ID="<DEPLOYED_RENT_SPLIT_CONTRACT_ID>"
+VITE_ROOM_MANAGER_CONTRACT_ID="<DEPLOYED_ROOM_MANAGER_CONTRACT_ID>"
+VITE_SOROBAN_RPC_URL="https://soroban-testnet.stellar.org"
+VITE_NETWORK_PASSPHRASE="Test SDF Network ; September 2015"
+VITE_HORIZON_URL="https://horizon-testnet.stellar.org"
+```
 
 ---
 
-## 4. Frontend Configuration
+## 🔄 4. Rollback & Upgrade Procedures
 
-Update your `.env` file in the `rentstar` root:
-```env
-VITE_CONTRACT_ID="<DEPLOYED_CONTRACT_ID>"
-VITE_SOROBAN_RPC_URL="https://soroban-testnet.stellar.org"
-```
+### Upgrading Logic
+To change contract logic while maintaining roommate shares:
+1. Re-compile the modified `rent_split` contract and redeploy it to get a new `RENT_SPLIT_ID`.
+2. Link the new `RENT_SPLIT_ID` in `RoomManager` by calling `set_rent_split` from the admin identity.
+3. Update the `VITE_CONTRACT_ID` in the `.env` file and rebuild the frontend. The existing roommates and shares in `RoomManager` will remain completely unaffected!
+
+### Rollback Strategy
+If a deployment fails or exhibits issues:
+1. Re-link the previous `RENT_SPLIT_ID` in `RoomManager` by calling `set_rent_split` with the older contract address.
+2. Update the `.env` file to reference the older `RENT_SPLIT_ID` and rebuild the client application.
