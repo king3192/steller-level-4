@@ -35,7 +35,7 @@ pub trait RoomManager {
     fn get_paid(env: Env, roommate: Address) -> i128;
     fn is_roommate(env: Env, roommate: Address) -> bool;
     fn get_total_rent(env: Env) -> i128;
-    fn record_payment(env: Env, roommate: Address, amount: i128) -> Result<(), u32>;
+    fn record_payment(env: Env, roommate: Address, amount: i128) -> Result<(), soroban_sdk::Error>;
 }
 
 #[contract]
@@ -215,7 +215,7 @@ mod test {
         pub fn get_total_rent(env: Env) -> i128 {
             env.storage().instance().get(&MockDataKey::TotalRent).unwrap_or(0)
         }
-        pub fn record_payment(env: Env, roommate: Address, amount: i128) -> Result<(), u32> {
+        pub fn record_payment(env: Env, roommate: Address, amount: i128) -> Result<(), soroban_sdk::Error> {
             let split: Address = env.storage().instance().get(&MockDataKey::RentSplit).unwrap();
             split.require_auth();
             let paid_key = MockDataKey::RoommatePaid(roommate.clone());
