@@ -172,42 +172,53 @@ mod test {
     // Let's register it manually in the test.
     struct RoomManagerContractTest;
 
+    #[contracttype]
+    #[derive(Clone)]
+    pub enum MockDataKey {
+        Admin,
+        RentSplit,
+        RoommateShare(Address),
+        RoommatePaid(Address),
+        Initialized,
+        TotalRent,
+    }
+
     #[contract]
     pub struct RoomManagerMock;
 
     #[contractimpl]
     impl RoomManagerMock {
         pub fn initialize(env: Env, admin: Address) {
-            env.storage().instance().set(&DataKey::Admin, &admin);
-            env.storage().instance().set(&DataKey::TotalRent, &0i128);
-            env.storage().instance().set(&DataKey::Initialized, &true);
+            env.storage().instance().set(&MockDataKey::Admin, &admin);
+            env.storage().instance().set(&MockDataKey::TotalRent, &0i128);
+            env.storage().instance().set(&MockDataKey::Initialized, &true);
         }
         pub fn set_rent_split(env: Env, rent_split: Address) {
-            env.storage().instance().set(&DataKey::RentSplit, &rent_split);
+            env.storage().instance().set(&MockDataKey::RentSplit, &rent_split);
         }
         pub fn add_roommate(env: Env, roommate: Address, share: i128) {
-            env.storage().persistent().set(&DataKey::RoommateShare(roommate.clone()), &share);
-            env.storage().persistent().set(&DataKey::RoommatePaid(roommate), &0i128);
-            let mut total: i128 = env.storage().instance().get(&DataKey::TotalRent).unwrap_or(0);
+            env.storage().persistent().set(&MockDataKey::RoommateShare(roommate.clone()), &share);
+            env.storage().persistent().set(&MockDataKey::RoommatePaid(roommate), &0i128);
+            let mut total: i128 = env.storage().instance().get(&MockDataKey::TotalRent).unwrap_or(0);
             total += share;
-            env.storage().instance().set(&DataKey::TotalRent, &total);
+            env.storage().instance().set(&MockDataKey::TotalRent, &total);
         }
         pub fn get_share(env: Env, roommate: Address) -> i128 {
-            env.storage().persistent().get(&DataKey::RoommateShare(roommate)).unwrap_or(0)
+            env.storage().persistent().get(&MockDataKey::RoommateShare(roommate)).unwrap_or(0)
         }
         pub fn get_paid(env: Env, roommate: Address) -> i128 {
-            env.storage().persistent().get(&DataKey::RoommatePaid(roommate)).unwrap_or(0)
+            env.storage().persistent().get(&MockDataKey::RoommatePaid(roommate)).unwrap_or(0)
         }
         pub fn is_roommate(env: Env, roommate: Address) -> bool {
-            env.storage().persistent().has(&DataKey::RoommateShare(roommate))
+            env.storage().persistent().has(&MockDataKey::RoommateShare(roommate))
         }
         pub fn get_total_rent(env: Env) -> i128 {
-            env.storage().instance().get(&DataKey::TotalRent).unwrap_or(0)
+            env.storage().instance().get(&MockDataKey::TotalRent).unwrap_or(0)
         }
         pub fn record_payment(env: Env, roommate: Address, amount: i128) -> Result<(), u32> {
-            let split: Address = env.storage().instance().get(&DataKey::RentSplit).unwrap();
+            let split: Address = env.storage().instance().get(&MockDataKey::RentSplit).unwrap();
             split.require_auth();
-            let paid_key = DataKey::RoommatePaid(roommate.clone());
+            let paid_key = MockDataKey::RoommatePaid(roommate.clone());
             let current: i128 = env.storage().persistent().get(&paid_key).unwrap_or(0);
             env.storage().persistent().set(&paid_key, &(current + amount));
             Ok(())

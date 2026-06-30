@@ -37,7 +37,7 @@ if ([string]::IsNullOrEmpty($gitUser) -or [string]::IsNullOrEmpty($gitEmail)) {
 }
 
 # 3. Add Remote Origin
-$remoteUrl = "https://github.com/king3192/steller-level-2.git"
+$remoteUrl = "https://github.com/king3192/steller-level-3.git"
 Write-Host "`nSetting up remote origin to: $remoteUrl" -ForegroundColor Yellow
 
 $remotes = git remote
