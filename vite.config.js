@@ -6,7 +6,7 @@ export default defineConfig(({ mode }) => {
   const isProd = mode === 'production';
 
   return {
-    base: '/steller-level-3/',
+    base: process.env.VITE_BASE_PATH || './',
     plugins: [react()],
     server: {
       port: 3001,
