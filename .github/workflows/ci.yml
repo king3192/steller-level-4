@@ -70,7 +70,7 @@ jobs:
         run: npm ci
 
       - name: Run ESLint
-        run: npm run lint || echo "ESLint skipped or failed"
+        run: npm run lint
 
       - name: Build Production Bundle
         run: npm run build
@@ -132,7 +132,7 @@ jobs:
         run: |
           gh release create "v${{ github.run_number }}" \
             --title "Release v${{ github.run_number }}" \
-            --notes "RentStar settlement application successfully built and deployed to GitHub Pages. Live URL: https://king3192.github.io/steller-level-3/ | Run: ${{ github.run_id }}"
+            --notes "RentStar settlement application successfully built and deployed to GitHub Pages. Live URL: https://king3192.github.io/steller-level-4/ | Run: ${{ github.run_id }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
