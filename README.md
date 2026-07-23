@@ -12,20 +12,18 @@
 
 ## 📸 Screenshots
 
-1. **Balance & Profile Selection (Demo Mode)**  
-   ![Balance and Profile](https://github.com/king3192/steller-level-3/blob/52f742017db5b881bd437fb253a828ef6c1195f9/Screenshot%202026-06-30%20001800.png)
+1. **Product UI 1 (Demo Mode)**  
+   ![Product UI](https://github.com/king3192/steller-level-4/blob/d2f3131241765b5b5d0ba1a81b067628494d5bdd/Screenshot%202026-07-23%20213750.png)
 
-2. **Roommate Smart Contract Rent Settlement**  
-   ![Roommate Rent Settlement](https://github.com/king3192/steller-level-3/blob/52f742017db5b881bd437fb253a828ef6c1195f9/Screenshot%202026-06-30%20001822.png)
+2. **Product UI 2 (Demo Mode)**  
+   ![Product UI](https://github.com/king3192/steller-level-4/blob/d2f3131241765b5b5d0ba1a81b067628494d5bdd/Screenshot%202026-07-23%20213805.png)
 
-3. **Public Proof of Usage & On-Chain Activity Feed**  
-   ![Recent Activity](https://github.com/king3192/steller-level-3/blob/52f742017db5b881bd437fb253a828ef6c1195f9/Screenshot%202026-06-30%20001846.png)
+3. **Mobile responsive design**  
+   ![Mobile responsive design](https://github.com/king3192/steller-level-4/blob/d2f3131241765b5b5d0ba1a81b067628494d5bdd/Screenshot%202026-07-23%20214152.png)
 
-4. **Landlord Dashboard & Registered Roommates**  
-   ![Landlord Dashboard](https://github.com/king3192/steller-level-3/blob/52f742017db5b881bd437fb253a828ef6c1195f9/Screenshot%202026-06-30%20001912.png)
+4. **Analytics or monitoring setup**  
+   ![Analytics or monitoring setup](https://github.com/king3192/steller-level-4/blob/d2f3131241765b5b5d0ba1a81b067628494d5bdd/Screenshot%202026-07-23%20220451.png)
 
-5. **Roommate Registration & Contract Linkage**  
-   ![Roommate Registration](https://github.com/king3192/steller-level-3/blob/52f742017db5b881bd437fb253a828ef6c1195f9/Screenshot%202026-06-30%20002006.png)
 
 ---
 
