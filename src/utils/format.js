@@ -1,15 +1,22 @@
 /**
- * Shortens a Stellar public key to a readable format (e.g. GAAA...A123).
+ * Shortens / formats a Stellar public key or transaction hash to a readable format (e.g. GAAA...A123).
  * 
- * @param {string} address The full Stellar public key.
- * @returns {string} Shortened address string, or empty string.
+ * @param {string} address The full Stellar public key or transaction hash.
+ * @param {number} [startChars=4] Number of characters to keep at the start.
+ * @param {number} [endChars=4] Number of characters to keep at the end.
+ * @returns {string} Formatted address string, or empty string.
  */
-export function shortenAddress(address) {
-  if (!address || typeof address !== 'string' || address.length < 10) {
+export function shortenAddress(address, startChars = 4, endChars = 4) {
+  if (!address || typeof address !== 'string' || address.length < (startChars + endChars)) {
     return '';
   }
-  return `${address.substring(0, 4)}...${address.substring(address.length - 4)}`;
+  return `${address.substring(0, startChars)}...${address.substring(address.length - endChars)}`;
 }
+
+/**
+ * Alias for shortenAddress, used for formatting addresses and transaction hashes.
+ */
+export const formatAddress = shortenAddress;
 
 /**
  * Formats a raw XLM balance string/number to exactly 7 decimal places.
